@@ -18,10 +18,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.error(err));
+
 
 app.use("/api", dataRoutes);
 app.use("/api",PaitentRoutes);
@@ -40,6 +37,14 @@ process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED REJECTION:", err);
 });
 
-app.listen(3000, () => {
-  console.log("🚀 Server running on port 3000");
-});
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log("✅ MongoDB Connected");
+
+    app.listen(process.env.PORT || 3000, () => {
+      console.log(`🚀 Server running on port ${process.env.PORT}`);
+    });
+
+  })
+  .catch(err => console.error("❌ Mongo Error:", err));
