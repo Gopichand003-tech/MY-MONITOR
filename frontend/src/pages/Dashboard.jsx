@@ -18,7 +18,7 @@ function Dashboard() {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("checking");
   const [played, setPlayed] = useState(false);
-  const [history, setHistory] = useState([]);
+  // const [history, setHistory] = useState([]);
   const [audio] = useState(new Audio("/alarm_tone.mp3"));
 
   // ===============================
@@ -66,16 +66,8 @@ const tempCritical = temperature > 39;
       return;
     }
 
+    // ✅ ONLY LIVE DATA
     setData(res.data);
-
-    setHistory(prev => [
-      ...prev.slice(-20),
-      {
-        time: new Date().toLocaleTimeString(),
-        heartRate: res.data?.heartRate ?? 0,
-        temperature: res.data?.temperature ?? 0
-      }
-    ]);
 
   } catch (err) {
     console.error("Fetch error:", err);
@@ -254,7 +246,7 @@ const tempCritical = temperature > 39;
         <p className="text-gray-300">°C</p>
 
         <p className="text-sm mt-2 text-gray-400">
-          {data.temperature > 38 ? "⬆ High" : "⬇ Normal"}
+         {(data?.temperature ?? 0) > 38 ? "⬆ High" : "⬇ Normal"}
         </p>
       </div>
 
