@@ -8,9 +8,9 @@ const router = express.Router();
 const HEART_MAX = 120;
 const HEART_MIN = 50;
 const TEMP_MAX = 39;
-const ALERT_COOLDOWN = 60000;
+const ALERT_COOLDOWN = 60000; // 1 minute
 
-// ✅ PER DEVICE ALERT TRACKING
+// 🔥 per device alert cooldown
 const alertMap = new Map();
 
 router.post("/data", async (req, res) => {
@@ -20,23 +20,18 @@ router.post("/data", async (req, res) => {
     const hr = Number(heartRate);
     const temp = Number(temperature);
 
-    // ❌ INVALID DATA CHECK
+    // ❌ basic validation
     if (!deviceId || isNaN(hr) || isNaN(temp)) {
       return res.status(400).json({ error: "Invalid sensor data" });
     }
 
-    // ❌ SENSOR ERROR FILTER
+    // ❌ temperature sensor error (-127 etc)
     if (temp < 0 || temp > 100) {
       console.log("❌ Invalid temperature ignored:", temp);
       return res.sendStatus(200);
     }
 
-    if (hr <= 0 || hr > 250) {
-      console.log("❌ Invalid heart rate ignored:", hr);
-      return res.sendStatus(200);
-    }
-
-    // 🔎 FIND PATIENT
+    // 🔎 find patient
     const patient = await Patient.findOne({ deviceId });
 
     if (!patient) {
@@ -45,21 +40,23 @@ router.post("/data", async (req, res) => {
 
     let status = "Normal";
 
+    // 🚨 NEW LOGIC (YOUR REQUIREMENT)
     const isCritical =
-      hr > HEART_MAX ||
+      hr === 0 ||           // 🔥 important
       hr < HEART_MIN ||
+      hr > HEART_MAX ||
       temp > TEMP_MAX;
 
-    // 🚨 CRITICAL CONDITION
     if (isCritical) {
       status = "Critical";
 
       const now = Date.now();
       const lastTime = alertMap.get(deviceId) || 0;
 
+      // 🔥 cooldown control (no spam)
       if (now - lastTime > ALERT_COOLDOWN) {
         await startAlert({
-          deviceId, // ✅ IMPORTANT
+          deviceId,
           name: patient.name,
           heartRate: hr,
           temperature: temp,
@@ -70,12 +67,12 @@ router.post("/data", async (req, res) => {
       }
 
     } else {
-      // 🛑 STOP ALERT WHEN NORMAL
+      // ✅ stop alert when back to normal
       stopAlert(deviceId);
       alertMap.delete(deviceId);
     }
 
-    // 💾 SAVE DATA
+    // 💾 save reading (INCLUDING hr=0)
     const newReading = new Reading({
       deviceId,
       patientId: patient._id,
@@ -94,7 +91,8 @@ router.post("/data", async (req, res) => {
   }
 });
 
-// 📡 GET LATEST DATA
+
+// 📡 GET LATEST
 router.get("/latest/:deviceId", async (req, res) => {
   try {
     const reading = await Reading.findOne({
@@ -107,6 +105,7 @@ router.get("/latest/:deviceId", async (req, res) => {
     res.status(500).json({ error: "Error fetching latest data" });
   }
 });
+
 
 // 📊 GET HISTORY
 router.get("/history/:deviceId", async (req, res) => {
