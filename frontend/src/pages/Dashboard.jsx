@@ -18,7 +18,7 @@ function Dashboard() {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("checking");
   const [played, setPlayed] = useState(false);
-  // const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState([]);
   const [audio] = useState(new Audio("/alarm_tone.mp3"));
 
   // ===============================
@@ -66,9 +66,17 @@ const tempCritical = temperature > 39;
       return;
     }
 
-    // ✅ ONLY LIVE DATA
     setData(res.data);
 
+// 🔥 ADD THIS BACK
+setHistory(prev => [
+  ...prev.slice(-20),
+  {
+    time: new Date().toLocaleTimeString(),
+    heartRate: res.data?.heartRate ?? 0,
+    temperature: res.data?.temperature ?? 0
+  }
+]);
   } catch (err) {
     console.error("Fetch error:", err);
   }
@@ -272,7 +280,7 @@ const tempCritical = temperature > 39;
     <h2 className="text-xl mb-4">❤️ Heart Rate Trend</h2>
 
     <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={history}>
+      <LineChart data={history || [] }>
         <CartesianGrid strokeDasharray="3 3" stroke="#444" />
         <XAxis dataKey="time" stroke="#ccc" />
         <YAxis stroke="#ccc" />
@@ -294,7 +302,7 @@ const tempCritical = temperature > 39;
     <h2 className="text-xl mb-4">🌡 Temperature Trend</h2>
 
     <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={history}>
+      <LineChart data={history || [] }>
         <CartesianGrid strokeDasharray="3 3" stroke="#444" />
         <XAxis dataKey="time" stroke="#ccc" />
         <YAxis stroke="#ccc" />
