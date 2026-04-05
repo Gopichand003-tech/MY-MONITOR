@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../services/api";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid
+} from "recharts";
 
 function Dashboard() {
   const { deviceId } = useParams();
@@ -9,15 +18,17 @@ function Dashboard() {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("checking");
   const [played, setPlayed] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [audio] = useState(new Audio("/alarm_tone.mp3"));
 
   // ===============================
   // ✅ SAFE CALCULATIONS
   // ===============================
-  const heartCritical =
-    data?.heartRate > 120 || data?.heartRate < 50;
+  const heartRate = data?.heartRate ?? 0;
+const temperature = data?.temperature ?? 0;
 
-  const tempCritical =
-    data?.temperature > 39;
+const heartCritical = heartRate > 120 || heartRate < 50;
+const tempCritical = temperature > 39;
 
   const isCritical =
     heartCritical || tempCritical;
@@ -26,18 +37,19 @@ function Dashboard() {
   // 🔔 ALERT SOUND
   // ===============================
   useEffect(() => {
-    if (!data) return;
+  if (!data) return;
 
-    if (isCritical && !played) {
-      const audio = new Audio("/alarm_tone.mp3");
-      audio.play();
-      setPlayed(true);
-    }
+  if (isCritical) {
+    audio.loop = true;   // 🔁 loop only in critical
+    audio.play().catch(() => {});
+    setPlayed(true);
+  } else {
+    audio.pause();       // 🛑 STOP SOUND
+    audio.currentTime = 0; // reset
+    setPlayed(false);
+  }
 
-    if (!isCritical) {
-      setPlayed(false);
-    }
-  }, [isCritical, data]);
+}, [isCritical, data]);
 
   // ===============================
   // 🔄 DEVICE CHECK + POLLING
@@ -45,14 +57,30 @@ function Dashboard() {
   useEffect(() => {
     let interval;
 
-    const fetchData = async () => {
-      try {
-        const res = await API.get(`/latest/${deviceId}`);
-        setData(res.data);
-      } catch (err) {
-        console.error("Fetch error:", err);
+   const fetchData = async () => {
+  try {
+    const res = await API.get(`/latest/${deviceId}`);
+
+    if (!res.data) {
+      console.log("No live data yet");
+      return;
+    }
+
+    setData(res.data);
+
+    setHistory(prev => [
+      ...prev.slice(-20),
+      {
+        time: new Date().toLocaleTimeString(),
+        heartRate: res.data?.heartRate ?? 0,
+        temperature: res.data?.temperature ?? 0
       }
-    };
+    ]);
+
+  } catch (err) {
+    console.error("Fetch error:", err);
+  }
+};
 
     const startPolling = () => {
       fetchData();
@@ -63,23 +91,33 @@ function Dashboard() {
       try {
         const res = await API.get(`/device-status/${deviceId}`);
 
-        if (!res.data.exists) {
-          setStatus("not-exists");
-          return;
-        }
+        // if (!res.data.exists) {
+        //   setStatus("not-exists");
+        //   return;
+        // }
 
-        if (!res.data.linked) {
-          setStatus("not-linked");
-          return;
-        }
+        // if (!res.data.linked) {
+        //   setStatus("not-linked");
+        //   return;
+        // }
 
-        setStatus("ready");
-        startPolling();
-      } catch (err) {
-        console.error("Verification error:", err);
-        setStatus("not-exists");
-      }
-    };
+        // setStatus("ready");
+
+       
+    if (!res.data.exists) {
+      setStatus("not-exists");
+    } else if (!res.data.linked) {
+      setStatus("not-linked");
+    } else {
+      setStatus("ready");   // ✅ THIS WAS MISSING
+      startPolling();       // ✅ start only when valid
+    }
+
+  } catch (err) {
+    console.error("Verification error:", err);
+    setStatus("not-exists");
+  }
+  };
 
     verifyDevice();
 
@@ -148,6 +186,13 @@ function Dashboard() {
       <h1 className="text-2xl font-bold tracking-wide">
         MY MONITOR
       </h1>
+ 
+      <button
+  onClick={() => navigate(`/history/${deviceId}`)}
+  className="bg-blue-500 px-4 py-2 rounded-lg hover:bg-blue-600"
+>
+   View History
+</button>
 
       <button
         onClick={() => {
@@ -184,13 +229,13 @@ function Dashboard() {
         <h2 className="text-xl mb-4">❤️ Heart Rate</h2>
 
         <div className={`text-6xl font-bold mb-2 ${heartCritical ? "animate-pulse" : ""}`}>
-          {data.heartRate}
+          {data?.heartRate ?? "--"}
         </div>
 
         <p className="text-gray-300">BPM</p>
 
         <p className="text-sm mt-2 text-gray-400">
-          {data.heartRate > 100 ? "⬆ High" : "⬇ Normal"}
+          {(data?.heartRate ?? 0) > 100 ? "⬆ High" : "⬇ Normal"}
         </p>
       </div>
 
@@ -203,7 +248,7 @@ function Dashboard() {
         <h2 className="text-xl mb-4">🌡 Temperature</h2>
 
         <div className={`text-6xl font-bold mb-2 ${tempCritical ? "animate-pulse" : ""}`}>
-          {data.temperature}
+          {data?.temperature ?? "--"}
         </div>
 
         <p className="text-gray-300">°C</p>
@@ -227,6 +272,53 @@ function Dashboard() {
       </div>
 
     </div>
+
+    <div className="max-w-6xl mx-auto px-6 pb-10 space-y-10">
+
+  {/* ❤️ HEART RATE GRAPH */}
+  <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl shadow-lg">
+    <h2 className="text-xl mb-4">❤️ Heart Rate Trend</h2>
+
+    <ResponsiveContainer width="100%" height={300}>
+      <LineChart data={history}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+        <XAxis dataKey="time" stroke="#ccc" />
+        <YAxis stroke="#ccc" />
+        <Tooltip />
+        <Line
+          type="monotone"
+          dataKey="heartRate"
+          stroke="#ff4d6d"
+          strokeWidth={3}
+          dot={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  </div>
+
+
+  {/* 🌡 TEMPERATURE GRAPH */}
+  <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl shadow-lg">
+    <h2 className="text-xl mb-4">🌡 Temperature Trend</h2>
+
+    <ResponsiveContainer width="100%" height={300}>
+      <LineChart data={history}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+        <XAxis dataKey="time" stroke="#ccc" />
+        <YAxis stroke="#ccc" />
+        <Tooltip />
+        <Line
+          type="monotone"
+          dataKey="temperature"
+          stroke="#4dabf7"
+          strokeWidth={3}
+          dot={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  </div>
+
+</div>
 
     {/* ⏱ FOOTER */}
     <div className="text-center text-gray-400 pb-10">
