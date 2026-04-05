@@ -1,17 +1,24 @@
 import twilio from "twilio";
 
-let alertInterval = null;
+const alertMap = new Map(); // deviceId → interval
 
-export function stopAlert() {
-  if (alertInterval) {
-    clearInterval(alertInterval);
-    alertInterval = null;
-    console.log("Alert stopped by user.");
+export function stopAlert(deviceId) {
+  const interval = alertMap.get(deviceId);
+
+  if (interval) {
+    clearInterval(interval);
+    alertMap.delete(deviceId);
+    console.log("Alert stopped for:", deviceId);
   }
 }
 
-export async function startAlert({ name, heartRate, temperature, phone }) {
-
+export async function startAlert({
+  deviceId,
+  name,
+  heartRate,
+  temperature,
+  phone
+}) {
   const sid = process.env.TWILIO_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
 
@@ -25,7 +32,8 @@ export async function startAlert({ name, heartRate, temperature, phone }) {
     return;
   }
 
-  if (alertInterval) return; // already running
+  // 🚫 Prevent duplicate alerts
+  if (alertMap.has(deviceId)) return;
 
   const client = twilio(sid, token);
 
@@ -36,8 +44,11 @@ Patient: ${name}
 Heart Rate: ${heartRate} BPM
 Temperature: ${temperature} °C
 
-Reply GOT IT to stop alerts.
+Immediate attention required!
 `;
+
+  let count = 0;
+  const MAX_ALERTS = 5; // limit
 
   const sendMessage = async () => {
     try {
@@ -48,14 +59,24 @@ Reply GOT IT to stop alerts.
       });
 
       console.log("Alert sent to:", phone);
+
+      count++;
+
+      // 🛑 Auto stop after limit
+      if (count >= MAX_ALERTS) {
+        stopAlert(deviceId);
+      }
+
     } catch (error) {
       console.error("WhatsApp error:", error.message);
     }
   };
 
-  // Send immediately
+  // Send first alert immediately
   await sendMessage();
 
-  // Repeat every 6 seconds
-  alertInterval = setInterval(sendMessage, 9000);
+  // Repeat every 10 sec
+  const interval = setInterval(sendMessage, 10000);
+
+  alertMap.set(deviceId, interval);
 }
