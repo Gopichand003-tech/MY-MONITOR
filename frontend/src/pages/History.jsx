@@ -23,9 +23,21 @@ function History() {
   }, [deviceId]);
 
   // 🔍 FILTER LOGIC
-  const filtered = history.filter(item =>
+  const today = new Date();
+
+const filtered = history.filter(item => {
+  const itemDate = new Date(item.createdAt);
+
+  const isToday =
+    itemDate.getDate() === today.getDate() &&
+    itemDate.getMonth() === today.getMonth() &&
+    itemDate.getFullYear() === today.getFullYear();
+
+  return (
+    isToday &&
     item.heartRate?.toString().includes(search)
   );
+});
 
   // 📊 STATS
   const total = history.length;
@@ -118,7 +130,7 @@ function History() {
       <div className="px-6 py-8 max-w-7xl mx-auto">
         {filtered.length === 0 ? (
           <div className="text-center text-gray-400 mt-10">
-            No history data available
+           No data available for today
           </div>
         ) : (
           <div className="overflow-x-auto bg-white/10 backdrop-blur-lg rounded-2xl shadow-lg">

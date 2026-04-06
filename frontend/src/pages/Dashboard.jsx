@@ -57,26 +57,36 @@ const tempCritical = temperature > 39;
   useEffect(() => {
     let interval;
 
-   const fetchData = async () => {
+ const fetchData = async () => {
   try {
     const res = await API.get(`/latest/${deviceId}`);
 
     if (!res.data) {
-      console.log("No live data yet");
+      setData(null);
+      setHistory([]);
+      return;
+    }
+
+    const now = new Date();
+    const dataTime = new Date(res.data.createdAt);
+
+    if (now - dataTime > 10000) {
+      setData(null);
+      setHistory([]);
       return;
     }
 
     setData(res.data);
 
-// 🔥 ADD THIS BACK
-setHistory(prev => [
-  ...prev.slice(-20),
-  {
-    time: new Date().toLocaleTimeString(),
-    heartRate: res.data?.heartRate ?? 0,
-    temperature: res.data?.temperature ?? 0
-  }
-]);
+    setHistory(prev => [
+      ...prev.slice(-20),
+      {
+        time: new Date().toLocaleTimeString(),
+        heartRate: res.data?.heartRate ?? 0,
+        temperature: res.data?.temperature ?? 0
+      }
+    ]);
+
   } catch (err) {
     console.error("Fetch error:", err);
   }
